@@ -41,7 +41,7 @@ for i in range(N):
 U = np.zeros((N,N))
 for n in range(N):
     for m in range(N):
-        U[n,m] = np.sqrt(2/(N+1)) * np.sin(m*n*pi/(N+1))
+        U[n,m] = np.sqrt(2/(N+1)) * np.sin((m+1)*(n+1)*pi/(N+1))
 V = np.zeros((N,N),dtype=complex)
 Vshow = np.zeros(N)
 cor = np.zeros(N)

@@ -11,6 +11,8 @@ import cmath as cm
 from scipy.special import eval_hermite as herm
 import matplotlib.pyplot as plt
 import math
+import torch
+from scipy.signal import argrelextrema
 import dvr
 
 m = 1000
@@ -19,8 +21,10 @@ x_min = -7
 x_max = 7
 N = 1000
 delta = (x_max - x_min)/(N+1)
-t_step = 1
-step = 1000001
+t_step = 10
+step:int = 1000001
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def time_exp(x:complex) -> complex:
     return cm.exp(-1j * x * t_step / 1)
@@ -40,7 +44,7 @@ def localmaxes(a):
     for i in range(len(a)):
         if(i == 0 or i == (len(a)-1)):
             continue
-        if(a[i-1]<=a[i] and a[i]>=a[i+1]):
+        if(a[i-1]<a[i] and a[i]>a[i+1]):
             out.append(i)
     return out
 
@@ -66,33 +70,34 @@ for i in range(N):
     # wfn[i] = initwfn(cor[i],0)/np.sqrt(3) + initwfn(cor[i],1)/np.sqrt(3) + initwfn(cor[i],2)/np.sqrt(3)
 wfn = dvr.v[:,0]/np.sqrt(2) + dvr.v[:,1]/np.sqrt(2)
 M = np.linalg.multi_dot([V,U,T,U,V])
-
+wfn_T = torch.from_numpy(wfn).type(torch.complex128).to(device)
+M_T = torch.from_numpy(M).type(torch.complex128).to(device)
 
 A = np.zeros(step, dtype=complex)
 ω = np.zeros(step)
 t = np.zeros(step)
-fftshow = np.zeros(step)
-wfnt = wfn
-# g = gaussian(step*2,0.4)[step:step*2]
+
+wfnt = torch.clone(wfn_T)
+
 for i in range(step):
-    wfnt = M.dot(wfnt)
-    t[i] = i*t_step
-    A[i] = np.vdot(wfnt, wfn) * np.exp(-0.5*(i*t_step/300000)**2)
+    wfn_T = M_T @ wfn_T
+    t[i] = (i+1)*t_step
+    A[i] = torch.linalg.vecdot(wfn_T,wfnt).item() * np.exp(-0.5*((i+1)*t_step/2400000)**2)
 
 fftA = np.fft.fft(A)
-ω = np.fft.fftfreq(step, t_step) * 2*pi
-# σ = dict(zip(ω,fftA))
+ω = np.fft.fftfreq(step, t_step) * (2*pi)
 
-# zip them and sort them
-ω, fftA = (np.array(t) for t in zip(*sorted(zip(ω, fftA))))
+ω = np.concatenate((ω[int(step/2)+1:],ω[:int(step/2)+1]))
+fftA = np.concatenate((fftA[int(step/2)+1:],fftA[:int(step/2)+1]))
 
 fig, axs = plt.subplots(1,2)
 axs[0].plot(t,abs(A))
 axs[1].plot(ω,abs(fftA))
-maxs = localmaxes(fftA)
+maxs = argrelextrema(fftA, np.greater)[0]
 for i in range(len(maxs)):
     print(ω[maxs[i]])
 plt.show()
 print("ref:")
 print(dvr.e[0])
 print(dvr.e[1])
+print(len(maxs))
